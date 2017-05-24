@@ -24,6 +24,10 @@ Parameters:
         AllowedValues:
             - "Yes"
             - "No"
+    SourceS3Bucket:
+        Type: String
+        Description: Bucket containing the datalake source code. Default is solutions from AWS in the active region. You must append your bucket name with the AWS Region
+        Default: "solutions"
 
 Metadata:
     AWS::CloudFormation::Interface:
@@ -50,36 +54,31 @@ Metadata:
             SendAnonymousData:
                 default: "Send Anonymous Usage Data"
 
-Mappings:
-    SourceCode:
-        General:
-            S3Bucket: "solutions"
-            KeyPrefix: "data-lake/latest"
 Resources:
 
     DataLakeServicesStack:
         DependsOn: "DataLakeUserPool"
         Type: "AWS::CloudFormation::Stack"
         Properties:
-            TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !Join ["-", [!FindInMap ["SourceCode", "General", "S3Bucket"], Ref: "AWS::Region"]] , !FindInMap ["SourceCode", "General", "KeyPrefix"], "data-lake-services.yaml"]]
+            TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !Join ["-", [!Ref SourceS3Bucket, Ref: "AWS::Region"]], "data-lake-services.yaml"]]
             Parameters:
                 UserPoolId: !GetAtt DataLakeUserPool.UserPoolId
-                SourceS3Bucket: !Join ["-", [!FindInMap ["SourceCode", "General", "S3Bucket"], Ref: "AWS::Region"]]
-                SourceKeyPrefix: !FindInMap ["SourceCode", "General", "KeyPrefix"]
+                SourceS3Bucket: !Join ["-", [!Ref SourceS3Bucket, Ref: "AWS::Region"]]
+                ResourcePrefix: !Ref ResourcePrefix
 
     DataLakeStorageStack:
         Type: "AWS::CloudFormation::Stack"
         Properties:
-            TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !Join ["-", [!FindInMap ["SourceCode", "General", "S3Bucket"], Ref: "AWS::Region"]], !FindInMap ["SourceCode", "General", "KeyPrefix"], "data-lake-storage.yaml"]]
+            TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !Join ["-", [!Ref SourceS3Bucket, Ref: "AWS::Region"]], "data-lake-storage.yaml"]]
             Parameters:
                 ESAccessIpAddress: !Ref AccessIpAddress
-
+                ResourcePrefix: !Ref ResourcePrefix
 
     DataLakeApiStack:
         DependsOn: "DataLakeServicesStack"
         Type: "AWS::CloudFormation::Stack"
         Properties:
-            TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !Join ["-", [!FindInMap ["SourceCode", "General", "S3Bucket"], Ref: "AWS::Region"]], !FindInMap ["SourceCode", "General", "KeyPrefix"], "data-lake-api.yaml"]]
+            TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !Join ["-", [!Ref SourceS3Bucket, Ref: "AWS::Region"]], "data-lake-api.yaml"]]
             Parameters:
                 AuthorizerArn: !GetAtt DataLakeServicesStack.Outputs.AuthorizerArn
                 AdminArn: !GetAtt DataLakeServicesStack.Outputs.AdminArn
@@ -135,7 +134,7 @@ Resources:
                     - "Arn"
             Region:
                 - Ref: "AWS::Region"
-            sourceS3Bucket: !Join ["-", [!FindInMap ["SourceCode", "General", "S3Bucket"], Ref: "AWS::Region"]]
+            sourceS3Bucket: !Join ["-", [!Ref SourceS3Bucket, Ref: "AWS::Region"]]
             sourceS3key: !Join ["/", [!FindInMap ["SourceCode", "General", "KeyPrefix"], "site"]]
             destS3Bucket: !Join ["", ["datalakeweb-", Ref: "AWS::Region", "-", Ref: "AWS::AccountId" ]]
             userPoolId: !GetAtt DataLakeUserPool.UserPoolId
@@ -257,7 +256,7 @@ Resources:
         DependsOn: DataLakeStorageStack
         Properties:
             Code:
-                S3Bucket: !Join ["-", [!FindInMap ["SourceCode", "General", "S3Bucket"], Ref: "AWS::Region"]]
+                S3Bucket: !Join ["-", [!Ref SourceS3Bucket, Ref: "AWS::Region"]]
                 S3Key: !Join ["/", [!FindInMap ["SourceCode", "General", "KeyPrefix"],  "data-lake-helper.zip"]]
             Description: "A data lake helper function for solution deployment"
             FunctionName: "data-lake-helper"
